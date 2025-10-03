@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hộp Trung Thu QR</title>
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; }
+    body { background: linear-gradient(180deg, #0b1426 0%, #0f1e3a 55%, #050a16 100%); position: relative; }
+
+    .moon, .haze, .lantern { pointer-events: none; }
+    .moon {
+      position: fixed; top: 5%; right: 8%;
+      width: clamp(80px, 20vw, 140px); height: clamp(80px, 20vw, 140px);
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #fffde7 0%, #ffe082 55%, rgba(255,224,130,0) 70%);
+      box-shadow: 0 0 40px 16px rgba(255,224,130,.45), 0 0 90px 36px rgba(255,224,130,.18) inset;
+      z-index: 0; opacity: .9;
+    }
+    .haze {
+      position: fixed; inset: auto 0 0 0; height: 42%;
+      background: radial-gradient(ellipse at 50% 100%, rgba(255,255,255,.12), rgba(255,255,255,0) 60%);
+      z-index: 0;
+    }
+    .lantern, .lantern::after {
+      position: fixed; border-radius: 12px;
+      background: radial-gradient(circle at 50% 30%, rgba(255,200,0,.9), rgba(255,120,0,.9) 70%, rgba(255,120,0,0) 75%);
+      box-shadow: 0 0 18px rgba(255,160,0,.55);
+      z-index: 0; opacity: .9; animation: sway 3.6s ease-in-out infinite; transform-origin: top center;
+    }
+    .lantern { left: 10%; top: 12%; width: 26px; height: 42px; }
+    .lantern::after { content: ""; left: 60px; top: 50px; width: 22px; height: 36px; position: absolute; }
+    @keyframes sway { 0%,100%{ transform: rotate(-3deg);} 50%{ transform: rotate(3deg);} }
+
+    #title, #hint { pointer-events: none; }
+    #title {
+      position: fixed; top: 18px; left: 0; right: 0; text-align: center;
+      font-size: clamp(22px, 6vw, 40px); color: #ffd54f; z-index: 2;
+      text-shadow: 0 0 8px rgba(255,215,0,.9), 0 0 18px rgba(255,215,0,.6), 0 2px 0 rgba(0,0,0,.35);
+    }
+    #hint {
+      position: fixed; bottom: 18px; left: 0; right: 0; text-align: center;
+      color: #d7e3ff; opacity: .9; font-size: clamp(12px, 3vw, 14px); z-index: 2;
+    }
+
+    #openBtn {
+      position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);
+      z-index: 3; border: none; padding: 12px 20px; border-radius: 999px;
+      background: #ffd54f; color: #351f00; font-weight: 600;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+      display: inline-block; cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    #openBtn:hover { box-shadow: 0 8px 22px rgba(0,0,0,.35); }
+    #openBtn:active { transform: translateX(-50%) scale(0.95); }
+
+    canvas { display:block; position:relative; z-index:1; }
+  </style>
+</head>
+<body>
+  <div class="moon"></div><div class="lantern"></div><div class="haze"></div>
+
+  <div id="title">Trung Thu Vui Vẻ</div>
+  <div id="hint">Nhấn nút hoặc chạm nền để mở hộp bánh</div>
+  <button id="openBtn">🎁 Mở hộp</button>
+
+  <script type="module">
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js";
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000, 0);
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x223355, 1.2));
+  const spot = new THREE.SpotLight(0xffffff, 1.6, 90, Math.PI/6, 0.26);
+  spot.position.set(2, 18, 12);
+  spot.castShadow = true; spot.shadow.mapSize.set(2048,2048);
+  scene.add(spot); scene.add(spot.target);
+  const frontFill = new THREE.DirectionalLight(0xffffff, 1.2);
+  frontFill.position.set(0, 4, 10); scene.add(frontFill);
+
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({opacity:.25}));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+
+  const boxColor = 0xd32f2f;
+  const giftBox = new THREE.Group(); scene.add(giftBox);
+  const boxMat = new THREE.MeshStandardMaterial({ color: boxColor, roughness: 0.4, metalness: 0.2 });
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(8,1,8), boxMat);
+  base.castShadow = base.receiveShadow = true; giftBox.add(base);
+
+  const t=0.25, h=2.2;
+  const wallFront = new THREE.Mesh(new THREE.BoxGeometry(8,h,t), boxMat);
+  wallFront.scale.y = 0.6; wallFront.position.set(0,0.5+(h*0.6)/2,4-t/2);
+  const wallBack = new THREE.Mesh(new THREE.BoxGeometry(8,h,t), boxMat);
+  wallBack.position.set(0,0.5+h/2,-(4-t/2));
+  const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(t,h,8), boxMat);
+  wallLeft.position.set(4-t/2,0.5+h/2,0);
+  const wallRight = wallLeft.clone(); wallRight.position.x = -(4-t/2);
+  for(const w of [wallFront,wallBack,wallLeft,wallRight]){ w.castShadow=w.receiveShadow=true; giftBox.add(w); }
+
+  const velvet = new THREE.Mesh(new THREE.PlaneGeometry(7.5,7.5), new THREE.MeshStandardMaterial({ color:0x4b0f2f, roughness:0.8 }));
+  velvet.rotation.x=-Math.PI/2; velvet.position.y=0.51; velvet.receiveShadow=true; base.add(velvet);
+
+  const lidPivot=new THREE.Group(); lidPivot.position.set(0,1+h+0.2,-4); giftBox.add(lidPivot);
+  const lid=new THREE.Mesh(new THREE.BoxGeometry(8,1,8),boxMat);
+  lid.position.set(0,0,4); lid.castShadow=lid.receiveShadow=true; lidPivot.add(lid);
+
+  const loader = new THREE.TextureLoader();
+  loader.load("hoavan.png", tx=>{
+    const deco=new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshBasicMaterial({map:tx,transparent:true}));
+    deco.rotation.x=-Math.PI/2; deco.position.set(0,0.52,0); lid.add(deco);
+  });
+
+  let mooncake;
+  loader.load("qr.png", (tx)=>{
+    tx.generateMipmaps = false;
+    tx.minFilter = THREE.NearestFilter;
+    tx.magFilter = THREE.NearestFilter;
+    tx.anisotropy = 1;
+
+    const R=3.5, H=1.8, bevel=0.25, steps=24, profile=[];
+    profile.push(new THREE.Vector2(R-0.02,-H/2));
+    for(let i=0;i<=steps;i++){ const t=i/steps; profile.push(new THREE.Vector2(R-bevel+Math.cos(t*Math.PI)*bevel, -H/2+Math.sin(t*Math.PI)*bevel)); }
+    profile.push(new THREE.Vector2(R,0));
+    for(let i=0;i<=steps;i++){ const t=i/steps; profile.push(new THREE.Vector2(R-Math.sin(t*Math.PI)*bevel, H/2-Math.sin(t*Math.PI)*bevel*0.9+Math.sin(t*Math.PI)*0.04)); }
+    const lathe=new THREE.LatheGeometry(profile,128);
+
+    const moonMat=new THREE.MeshPhysicalMaterial({color:0xd4a373, roughness:.5, metalness:0, clearcoat:.6});
+    mooncake=new THREE.Mesh(lathe,moonMat);
+    mooncake.position.set(0, 2.4, 0);
+    mooncake.castShadow=mooncake.receiveShadow=true; giftBox.add(mooncake);
+
+    const qrTop=new THREE.Mesh(
+      new THREE.CircleGeometry(3.8,128),
+      new THREE.MeshBasicMaterial({map:tx, toneMapped:false})
+    );
+    qrTop.rotation.x=-Math.PI/2; qrTop.position.y=H/2 - 0.01;
+    mooncake.add(qrTop);
+  });
+
+  function adjustForScreen(){
+    const isMobile = innerWidth < 768;
+    if(isMobile){
+      camera.position.set(0,6.0,18);
+      giftBox.scale.set(0.95,0.95,0.95);
+      giftBox.rotation.x = 0.35; // nghiêng xuống nhiều hơn
+    } else {
+      camera.position.set(0,6.8,17);
+      giftBox.scale.set(1.25,1.25,1.25);
+      giftBox.rotation.x = 0.32;
+    }
+    camera.lookAt(0,2,0);
+  }
+  adjustForScreen();
+
+  let isOpening=false,isOpen=false;
+  function openLid(){ if(!isOpen && !isOpening){ isOpening=true; } }
+
+  renderer.domElement.addEventListener('click', openLid);
+  renderer.domElement.addEventListener('touchstart', openLid, {passive:true});
+  document.getElementById('openBtn').addEventListener('click', openLid);
+  window.addEventListener('keydown', (e)=>{ if(e.code==='Enter'||e.code==='Space') openLid(); });
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if(isOpening && !isOpen){
+      if(lidPivot.rotation.x>-Math.PI/2) lidPivot.rotation.x-=0.02;
+      if(mooncake && mooncake.position.y<2.55) mooncake.position.y+=0.0035;
+      if(lidPivot.rotation.x<=-Math.PI/2){ 
+        isOpen=true; isOpening=false;
+        document.getElementById('openBtn').style.display = 'none';
+      }
+    }
+    if(mooncake && isOpen){ mooncake.rotation.y+=0.001; }
+    renderer.render(scene,camera);
+  }
+  animate();
+
+  window.addEventListener("resize", ()=>{ 
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+    adjustForScreen();
+  });
+  </script>
+</body>
+</html>
